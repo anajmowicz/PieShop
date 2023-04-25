@@ -1,15 +1,27 @@
+using PieShop.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PieShop.Models;
-using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddControllersWithViews().AddJsonOptions(options =>
-{
-    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-});
-builder.Services.AddScoped<IPieRepository, PieRepository>();
+var connectionString = builder.Configuration.GetConnectionString("PieShopDbContextConnection") ?? throw new InvalidOperationException("Connection string 'PieShopDbContextConnection' not found.");
+
+builder.Services.AddDbContext<PieShopDbContext>(options =>
+    options.UseSqlServer(connectionString)); ;
+
+builder.Services.AddDefaultIdentity<IdentityUser>()
+    .AddEntityFrameworkStores<PieShopDbContext>();
+
+builder.Services.AddControllersWithViews();
+
+//builder.Services.AddScoped<ICategoryRepository, MockCategoryRepository>();
+//builder.Services.AddScoped<IPieRepository, MockPieRepository>();
+
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+builder.Services.AddScoped<IPieRepository, PieRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+
+
 builder.Services.AddScoped<IShoppingCart, ShoppingCart>(sp => ShoppingCart.GetCart(sp));
 builder.Services.AddSession();
 builder.Services.AddHttpContextAccessor();
@@ -17,21 +29,34 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 
-builder.Services.AddDbContext<PieShopDbContext>(options => 
-        options.UseSqlServer(builder.Configuration.GetConnectionString("PieShopDbContextConnection")));
+builder.Services.AddDbContext<PieShopDbContext>(options => {
+    options.UseSqlServer(
+        builder.Configuration["ConnectionStrings:BethanysPieShopDbContextConnection"]);
+});
 
 var app = builder.Build();
 
-app.UseStaticFiles();
-app.UseSession();
-if(app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
-}   
-app.MapDefaultControllerRoute();
-app.MapRazorPages();
+}
 
+app.UseStaticFiles();
+app.UseSession();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.MapRazorPages();
 app.MapBlazorHub();
+
 app.MapFallbackToPage("/app/{*catchall}", "/App/Index");
+
+
 DbInitializer.Seed(app);
+
 app.Run();
